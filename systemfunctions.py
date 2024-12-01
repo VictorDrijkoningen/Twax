@@ -1,4 +1,11 @@
 import requests
+import serial
+import json
+import time
+
+LASTSENT = 0
+
+
 
 def update(force_update = False):
     with open(".env") as f:
@@ -23,3 +30,41 @@ def update(force_update = False):
 
 def upload_to_anet():
     pass
+
+
+def setup_anet_connection():
+    global ANETSERIAL
+
+    with open(".env") as f:
+        env = f.read().split(",")
+
+    ANETSERIAL = serial.Serial(env[4], 115200, timeout=0.050)  # open serial port
+
+
+def rw_anet(sendstate, sendtimeout):
+    """update the state of the anet board and get sensor data"""
+    global ANETSERIAL
+    global LASTSENT
+    if time.time() - LASTSENT > sendtimeout:
+        ANETSERIAL.write("a".encode('ascii'))
+        ANETSERIAL.write((sendstate['ldrive']+100).to_bytes(1, 'big'))
+        ANETSERIAL.write("b".encode('ascii'))
+        ANETSERIAL.write((sendstate['rdrive']+100).to_bytes(1, 'big'))
+        ANETSERIAL.write("z".encode('ascii'))
+        LASTSENT = time.time()
+
+    datasize = 100
+
+    if ANETSERIAL.in_waiting > datasize:
+        astate_raw = str(ANETSERIAL.readline())[2:-5]
+        
+        try:
+            out = json.loads(astate_raw)
+            out['updatedtime'] = time.time()
+            return out
+        except ValueError as e:
+            print(astate_raw)
+            print("Malformed json")
+            # print(e)
+
+    return -1
