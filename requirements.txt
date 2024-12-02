@@ -1,3 +1,4 @@
 microdot
 pyserial
 requests
+evdev
